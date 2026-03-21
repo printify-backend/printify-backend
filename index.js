@@ -3,9 +3,7 @@ const fetch = require("node-fetch");
 const app = express();
 
 app.use(express.json());
-
-const PRINTIFY_API_KEY = "YOUR_PRINTIFY_API_KEY";
-
+const PRINTIFY_API_KEY = process.env.BLOGGER_BACKEND;
 app.post("/create-order", async (req, res) => {
   try {
     const { product_id, variant_id, quantity, customer } = req.body;
