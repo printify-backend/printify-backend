@@ -33,7 +33,24 @@ app.post("/create-order", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.get("/get-variants/:productId", async (req, res) => {
+  try {
+    const response = await fetch(
+      `https://api.printify.com/v1/catalog/products/${req.params.productId}.json`,
+      {
+        headers: {
+          Authorization: `Bearer ${PRINTIFY_API_KEY}`,
+        },
+      }
+    );
 
+    const data = await response.json();
+    res.json(data.variants);
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.get("/", (req, res) => {
   res.send("Printify backend is running 🚀");
 });
