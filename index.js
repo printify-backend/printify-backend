@@ -1,13 +1,15 @@
 const express = require("express");
 const fetch = require("node-fetch");
+const cors = require("cors"); // ✅ ADD THIS
 const app = express();
 
 // Middleware
+app.use(cors()); // ✅ ADD THIS
 app.use(express.json());
 
 // Use your Render environment variables
 const PRINTIFY_API_KEY = process.env.BLOGGER_BACKEND;
-const SHOP_ID = process.env.PRINTIFY_SHOP_ID; // Make sure this exists in Render
+const SHOP_ID = process.env.PRINTIFY_SHOP_ID;
 
 // Route: Create Order
 app.post("/create-order", async (req, res) => {
@@ -36,7 +38,7 @@ app.post("/create-order", async (req, res) => {
   }
 });
 
-// Route: Get Variants for a Product
+// Route: Get Variants
 app.get("/get-variants/:productId", async (req, res) => {
   try {
     const { productId } = req.params;
@@ -52,14 +54,14 @@ app.get("/get-variants/:productId", async (req, res) => {
     );
 
     const data = await response.json();
-    res.json(data.variants); // returns all variants
+    res.json(data.variants);
 
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Route: Create Product in Printify store
+// Route: Create Product
 app.post("/create-product", async (req, res) => {
   try {
     const { title, description, blueprint_id, print_provider_id, variants } = req.body;
@@ -103,7 +105,7 @@ app.post("/create-product", async (req, res) => {
   }
 });
 
-// Route: Health check
+// Health check
 app.get("/", (req, res) => {
   res.send("Printify backend is running 🚀");
 });
