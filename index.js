@@ -1,120 +1,71 @@
-const express = require("express");
-const fetch = require("node-fetch");
-const cors = require("cors");
+require('dotenv').config();
+const express = require('express');
+const fetch = require('node-fetch');
+const bodyParser = require('body-parser');
+
 const app = express();
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+const PRINTIFY_API_KEY = process.env.PRINTIFY_API_KEY;
+const SHOP_ID = process.env.SHOP_ID;
 
-// Environment variables
-const PRINTIFY_API_KEY = process.env.BLOGGER_BACKEND;
-const SHOP_ID = process.env.PRINTIFY_SHOP_ID;
+// Region prices
+const PRICES = {
+  USA: 29.00,
+  Canada: 40.00,
+  Rest: 49.99
+};
 
-// Route: Create Order
-app.post("/create-order", async (req, res) => {
+// Endpoint to handle order
+app.post('/order', async (req, res) => {
   try {
-    const { product_id, variant_id, quantity, customer } = req.body;
+    const { productId, variantId, region, quantity, customer } = req.body;
 
-    const response = await fetch("https://api.printify.com/v1/orders.json", {
-      method: "POST",
+    // Set price for region
+    const price = PRICES[region] || PRICES['Rest'];
+
+    // 1. Here you would process payment using Stripe/PayPal
+    // For now, we simulate success
+    const paymentSuccess = true;
+
+    if (!paymentSuccess) return res.status(400).send('Payment failed');
+
+    // 2. Create Printify order
+    const orderData = {
+      line_items: [
+        {
+          variant_id: variantId,
+          quantity: quantity || 1,
+          retail_price: price.toString()
+        }
+      ],
+      shipping_address: customer, // object with name, address, city, country, etc.
+      send_shipping_notification: true
+    };
+
+    const response = await fetch(`https://api.printify.com/v1/shops/${SHOP_ID}/orders.json`, {
+      method: 'POST',
       headers: {
-        "Authorization": `Bearer ${PRINTIFY_API_KEY}`,
-        "Content-Type": "application/json"
+        'Authorization': `Bearer ${PRINTIFY_API_KEY}`,
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        line_items: [{ product_id, variant_id, quantity }],
-        shipping_method: 1,
-        send_shipping_notification: true,
-        address_to: customer
-      })
+      body: JSON.stringify(orderData)
     });
 
-    const data = await response.json();
-    res.json(data);
+    const result = await response.json();
 
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.send({ success: true, order: result });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ success: false, error: error.message });
   }
 });
 
-// Route: Get Variants
-app.get("/get-variants/:productId", async (req, res) => {
-  try {
-    const { productId } = req.params;
-
-    const response = await fetch(
-      `https://api.printify.com/v1/products/${productId}.json`,
-      {
-        headers: {
-          "Authorization": `Bearer ${PRINTIFY_API_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    const data = await response.json();
-    res.json(data.variants);
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.get('/', (req, res) => {
+  res.send('Custom payout server running!');
 });
 
-// Route: Create Product (simplified for title, description, SKU)
-app.post("/create-product", async (req, res) => {
-  try {
-    const { title, description, sku } = req.body;
-
-    if (!title || !description || !sku) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    // Default blueprint and print provider (adjust if needed)
-    const blueprint_id = 13;       // Mug template
-    const print_provider_id = 1;   // Default provider
-    const variants = [{ id: 1, price: 19.99, sku }]; // single variant
-
-    const response = await fetch(
-      `https://api.printify.com/v1/shops/${SHOP_ID}/products.json`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${PRINTIFY_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          title,
-          description,
-          blueprint_id,
-          print_provider_id,
-          variants
-        })
-      }
-    );
-
-    const data = await response.json();
-
-    if (data.id) {
-      res.json({
-        message: "Product created successfully!",
-        product_id: data.id,
-        variants: data.variants
-      });
-    } else {
-      res.status(500).json({ error: data });
-    }
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Health check
-app.get("/", (req, res) => {
-  res.send("Printify backend is running 🚀");
-});
-
-// Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port " + PORT));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
