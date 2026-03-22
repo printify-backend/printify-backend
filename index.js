@@ -1,13 +1,13 @@
 const express = require("express");
 const fetch = require("node-fetch");
-const cors = require("cors"); // ✅ ADD THIS
+const cors = require("cors");
 const app = express();
 
 // Middleware
-app.use(cors()); // ✅ ADD THIS
+app.use(cors());
 app.use(express.json());
 
-// Use your Render environment variables
+// Environment variables
 const PRINTIFY_API_KEY = process.env.BLOGGER_BACKEND;
 const SHOP_ID = process.env.PRINTIFY_SHOP_ID;
 
@@ -61,14 +61,19 @@ app.get("/get-variants/:productId", async (req, res) => {
   }
 });
 
-// Route: Create Product
+// Route: Create Product (simplified for title, description, SKU)
 app.post("/create-product", async (req, res) => {
   try {
-    const { title, description, blueprint_id, print_provider_id, variants } = req.body;
+    const { title, description, sku } = req.body;
 
-    if (!title || !description || !blueprint_id || !print_provider_id || !variants) {
+    if (!title || !description || !sku) {
       return res.status(400).json({ error: "Missing required fields" });
     }
+
+    // Default blueprint and print provider (adjust if needed)
+    const blueprint_id = 13;       // Mug template
+    const print_provider_id = 1;   // Default provider
+    const variants = [{ id: 1, price: 19.99, sku }]; // single variant
 
     const response = await fetch(
       `https://api.printify.com/v1/shops/${SHOP_ID}/products.json`,
