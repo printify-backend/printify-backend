@@ -5,8 +5,9 @@ const app = express();
 // Middleware
 app.use(express.json());
 
-// Use your Render environment variable
+// Use your Render environment variables
 const PRINTIFY_API_KEY = process.env.BLOGGER_BACKEND;
+const SHOP_ID = process.env.PRINTIFY_SHOP_ID; // Make sure this exists in Render
 
 // Route: Create Order
 app.post("/create-order", async (req, res) => {
@@ -52,6 +53,50 @@ app.get("/get-variants/:productId", async (req, res) => {
 
     const data = await response.json();
     res.json(data.variants); // returns all variants
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Route: Create Product in Printify store
+app.post("/create-product", async (req, res) => {
+  try {
+    const { title, description, blueprint_id, print_provider_id, variants } = req.body;
+
+    if (!title || !description || !blueprint_id || !print_provider_id || !variants) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const response = await fetch(
+      `https://api.printify.com/v1/shops/${SHOP_ID}/products.json`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${PRINTIFY_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          title,
+          description,
+          blueprint_id,
+          print_provider_id,
+          variants
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.id) {
+      res.json({
+        message: "Product created successfully!",
+        product_id: data.id,
+        variants: data.variants
+      });
+    } else {
+      res.status(500).json({ error: data });
+    }
 
   } catch (err) {
     res.status(500).json({ error: err.message });
