@@ -4,26 +4,27 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 
 const app = express();
-
 app.use(express.json());
 
-// ✅ CORS FIX (keep yours)
 app.use(cors({
   origin: 'https://kendieasykenyafashionglobe.blogspot.com'
 }));
 
-// ✅ TEST ROUTE
 app.get('/', (req, res) => {
   res.send('Backend is LIVE 🚀');
 });
 
-// 🔐 ENV VARIABLES
+// 🔐 ENV
 const CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const SECRET = process.env.PAYPAL_SECRET;
 const PRINTIFY_API_KEY = process.env.PRINTIFY_API_KEY;
 const SHOP_ID = process.env.SHOP_ID;
+const WEBHOOK_ID = process.env.PAYPAL_WEBHOOK_ID;
 
-// 📧 EMAIL SETUP
+// 📊 MEMORY DATABASE (NEW)
+let orders = [];
+
+// 📧 EMAIL
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -32,7 +33,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// 🔑 GET PAYPAL TOKEN (🔥 NOW LIVE NOT SANDBOX)
+// 🔑 PAYPAL TOKEN
 async function getAccessToken() {
   const res = await fetch('https://api-m.paypal.com/v1/oauth2/token', {
     method: 'POST',
@@ -42,7 +43,6 @@ async function getAccessToken() {
     },
     body: 'grant_type=client_credentials'
   });
-
   const data = await res.json();
   return data.access_token;
 }
@@ -53,13 +53,11 @@ app.post('/create-paypal-order', async (req, res) => {
     const { region, quantity } = req.body;
 
     let price = 0;
-
     if (region === 'USA') price = 29;
     if (region === 'Canada') price = 40;
     if (region === 'Rest') price = 49;
 
     const total = (price * quantity).toFixed(2);
-
     const accessToken = await getAccessToken();
 
     const response = await fetch('https://api-m.paypal.com/v2/checkout/orders', {
@@ -80,7 +78,6 @@ app.post('/create-paypal-order', async (req, res) => {
     });
 
     const data = await response.json();
-
     res.json({ id: data.id });
 
   } catch (err) {
@@ -89,14 +86,13 @@ app.post('/create-paypal-order', async (req, res) => {
   }
 });
 
-// 💰 CAPTURE + PRINTIFY + EMAIL
+// 💰 CAPTURE + LOG + PRINTIFY
 app.post('/capture-paypal-order', async (req, res) => {
   try {
     const { orderID, region, quantity } = req.body;
 
     const accessToken = await getAccessToken();
 
-    // 🔥 CAPTURE PAYMENT
     const response = await fetch(`https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture`, {
       method: 'POST',
       headers: {
@@ -107,12 +103,24 @@ app.post('/capture-paypal-order', async (req, res) => {
 
     const data = await response.json();
 
-    console.log("✅ PAYMENT SUCCESS:", data);
+    // 💰 CALCULATE PROFIT (NEW)
+    let price = region === 'USA' ? 29 : region === 'Canada' ? 40 : 49;
+    let revenue = price * quantity;
+    let cost = revenue * 0.7;
+    let profit = revenue - cost;
 
-    // =========================
-    // 📦 PRINTIFY ORDER
-    // =========================
+    // 📊 SAVE ORDER (NEW)
+    orders.push({
+      orderID,
+      region,
+      quantity,
+      revenue,
+      cost,
+      profit,
+      date: new Date()
+    });
 
+    // 📦 PRINTIFY
     let productId = '';
     let variantId = '';
 
@@ -120,12 +128,10 @@ app.post('/capture-paypal-order', async (req, res) => {
       productId = '69bfface47c38225cd091007';
       variantId = 104692;
     }
-
     if (region === 'Canada') {
       productId = '69c0387f77c22d11f40f29cf';
       variantId = 65216;
     }
-
     if (region === 'Rest') {
       productId = '69c037ae4a734703850466a8';
       variantId = 65216;
@@ -147,20 +153,16 @@ app.post('/capture-paypal-order', async (req, res) => {
       })
     });
 
-    // =========================
-    // 📧 EMAIL NOTIFICATION
-    // =========================
-
+    // 📧 EMAIL
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: process.env.EMAIL_USER,
       subject: "🛒 New Order!",
-      text: `New Order Received!
-
+      text: `Order ID: ${orderID}
 Region: ${region}
 Quantity: ${quantity}
-
-Order ID: ${orderID}`
+Revenue: $${revenue}
+Profit: $${profit}`
     });
 
     res.json(data);
@@ -171,6 +173,49 @@ Order ID: ${orderID}`
   }
 });
 
-// 🚀 START SERVER
+// 🔒 PAYPAL WEBHOOK (NEW)
+app.post('/paypal-webhook', (req, res) => {
+  const event = req.body;
+
+  // Basic event filter
+  if (event.event_type === "CHECKOUT.ORDER.APPROVED") {
+    console.log("✅ Webhook confirmed order:", event.resource.id);
+  }
+
+  res.sendStatus(200);
+});
+
+// 📊 DASHBOARD DATA (NEW)
+app.get('/dashboard-data', (req, res) => {
+  let totalOrders = orders.length;
+  let totalRevenue = orders.reduce((sum, o) => sum + o.revenue, 0);
+  let totalProfit = orders.reduce((sum, o) => sum + o.profit, 0);
+
+  // 📈 Daily revenue
+  let daily = {};
+  orders.forEach(o => {
+    let day = o.date.toISOString().split('T')[0];
+    daily[day] = (daily[day] || 0) + o.revenue;
+  });
+
+  // 📦 Product analytics
+  let products = {};
+  orders.forEach(o => {
+    products[o.region] = products[o.region] || { sales: 0, revenue: 0 };
+    products[o.region].sales += o.quantity;
+    products[o.region].revenue += o.revenue;
+  });
+
+  res.json({
+    totalOrders,
+    totalRevenue,
+    totalProfit,
+    orders,
+    dailyRevenue: daily,
+    productAnalytics: products
+  });
+});
+
+// 🚀 START
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
