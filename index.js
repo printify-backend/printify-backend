@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 app.use(cors({
-  origin: 'https://kendieasykenyafashionglobe.blogspot.com'
+  origin: 'https://kendieasykenyaglobal.blogspot.com'
 }));
 
 app.get('/', (req, res) => {
