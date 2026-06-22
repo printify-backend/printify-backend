@@ -6,8 +6,20 @@ const nodemailer = require('nodemailer');
 const app = express();
 app.use(express.json());
 
+const allowedOrigins = [
+  'https://kendieasykenyaglobal.blogspot.com',
+  'https://kektvglobalmovieshop.blogspot.com',
+  'https://souxiak.blogspot.com'
+];
+
 app.use(cors({
-  origin: 'https://kendieasykenyaglobal.blogspot.com'
+  origin: function(origin, callback){
+    if(!origin || allowedOrigins.includes(origin)){
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
 }));
 
 app.get('/', (req, res) => {
